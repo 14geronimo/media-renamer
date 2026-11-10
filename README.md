@@ -17,6 +17,7 @@ The script uses standard PowerShell cmdlets for filtering and renaming files in 
 
 - PowerShell 5.1+ or PowerShell 7+
 - ExifTool on `PATH` to read HEIC and media-container timestamps. Without it, the script still uses filename timestamps and filesystem dates; supported raster images retain the `System.Drawing` EXIF fallback.
+- ImageMagick on `PATH`, built with HEIC support, to convert HEIC files to JPEG.
 
 ### What the script does
 
@@ -26,7 +27,7 @@ The script scans a source directory, finds supported media files, and renames ea
 yyyymmdd-hhmmss.ext
 ```
 
-The rename is performed in place inside the same directory as the original file. The script does not copy the file to a separate target folder.
+The rename is performed in place inside the same directory as the original file. The script does not copy the file to a separate target folder. HEIC files are converted to JPG, transferable embedded metadata is copied with ExifTool, and the original filesystem Created and Modified times are applied to the JPG. The HEIC is removed only after conversion and metadata copying succeed.
 
 #### Timestamp selection logic
 
@@ -65,7 +66,7 @@ For example:
 
 After that, the extension is appended.
 
-ExifTool reads the listed metadata fields for supported media files, including HEIC and media containers. If no metadata date is found, the script uses the filesystem creation time, then the filesystem modification time. HEIC metadata reading requires ExifTool to be installed and available on `PATH`.
+ExifTool reads the listed metadata fields for supported media files, including HEIC and media containers. If no metadata date is found, the script uses the filesystem creation time, then the filesystem modification time. HEIC metadata reading and preservation require ExifTool on `PATH`; converting HEIC to JPG also requires ImageMagick with HEIC support.
 
 #### Extension handling and normalization
 

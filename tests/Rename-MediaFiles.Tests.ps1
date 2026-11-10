@@ -95,7 +95,24 @@ try {
     [System.IO.File]::WriteAllBytes($heicFile, [byte[]](1, 2, 3, 4))
     $heicDryRun = & $scriptPath -SourceDir $heicRoot -DryRun 2>&1
     $heicDryRunText = ($heicDryRun | Out-String)
-    Assert-True ($heicDryRunText.Contains('20241011-121314.heic')) "Expected HEIC files to be included by default and retain a normalized .heic extension."
+    Assert-True ($heicDryRunText.Contains('20241011-121314.jpg')) "Expected HEIC files to be planned as JPG output by default."
+    Assert-True ($heicDryRunText.Contains('(HEIC to JPG; filename)')) "Expected the preview to identify HEIC-to-JPG conversion."
+
+    if ($null -eq (Get-Command -Name 'magick' -CommandType Application -ErrorAction SilentlyContinue)) {
+        $missingConverterRoot = Join-Path $tempRoot 'missing-converter'
+        $null = New-Item -ItemType Directory -Path $missingConverterRoot -Force
+        $missingConverterFile = Join-Path $missingConverterRoot 'photo_2024-10-11_12-13-14.heic'
+        [System.IO.File]::WriteAllBytes($missingConverterFile, [byte[]](3, 2, 1))
+        $conversionFailed = $false
+        try {
+            $null = & $scriptPath -SourceDir $missingConverterRoot
+        }
+        catch {
+            $conversionFailed = $_.Exception.Message.Contains('ImageMagick is required')
+        }
+        Assert-True $conversionFailed "Expected a clear dependency error when ImageMagick is unavailable."
+        Assert-True (Test-Path -LiteralPath $missingConverterFile) "Expected the original HEIC to remain untouched when conversion cannot start."
+    }
 
     $fileDateRoot = Join-Path $tempRoot 'file-date-priority'
     $null = New-Item -ItemType Directory -Path $fileDateRoot -Force
@@ -105,12 +122,14 @@ try {
     (Get-Item $fileDate).LastWriteTime = [System.DateTime]::Parse('2024-10-15 09:08:07')
     $fileDatePreview = & $scriptPath -SourceDir $fileDateRoot -DryRun 2>&1
     $fileDatePreviewText = ($fileDatePreview | Out-String)
-    Assert-True ($fileDatePreviewText.Contains('20241014-080706.heic (file property Created date)')) "Expected File Creation Date/Time to be preferred over File Modification Date/Time."
+    Assert-True ($fileDatePreviewText.Contains('20241014-080706.jpg (HEIC to JPG; file property Created date)')) "Expected HEIC output to be JPG and File Creation Date/Time to be preferred over File Modification Date/Time."
 
     $exifToolCommand = Get-Command -Name 'exiftool' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($null -ne $exifToolCommand) {
-        $metadataJpeg = Join-Path $heicRoot 'metadata.jpg'
-        $metadataHeic = Join-Path $heicRoot 'metadata.HEIC'
+        $heicMetadataRoot = Join-Path $tempRoot 'heic-metadata'
+        $null = New-Item -ItemType Directory -Path $heicMetadataRoot -Force
+        $metadataJpeg = Join-Path $heicMetadataRoot 'metadata.jpg'
+        $metadataHeic = Join-Path $heicMetadataRoot 'metadata.HEIC'
         $metadataBitmap = New-Object System.Drawing.Bitmap(2, 2)
         $metadataBitmap.Save($metadataJpeg, [System.Drawing.Imaging.ImageFormat]::Jpeg)
         $metadataBitmap.Dispose()
@@ -119,9 +138,9 @@ try {
         Copy-Item -LiteralPath $metadataJpeg -Destination $metadataHeic
         (Get-Item $metadataHeic).LastWriteTime = [System.DateTime]::Parse('2024-10-13 09:00:00')
 
-        $heicMetadataDryRun = & $scriptPath -SourceDir $heicRoot -DryRun 2>&1
+        $heicMetadataDryRun = & $scriptPath -SourceDir $heicMetadataRoot -DryRun 2>&1
         $heicMetadataDryRunText = ($heicMetadataDryRun | Out-String)
-        Assert-True ($heicMetadataDryRunText.Contains('20241012-131415.heic')) "Expected HEIC EXIF capture time to take priority over file properties."
+        Assert-True ($heicMetadataDryRunText.Contains('20241012-131415.jpg')) "Expected HEIC EXIF capture time to take priority over file properties and produce JPG output."
         Assert-True ($heicMetadataDryRunText.Contains('(EXIF Photo taken)')) "Expected HEIC EXIF timestamp source to be identified in the preview."
     }
 

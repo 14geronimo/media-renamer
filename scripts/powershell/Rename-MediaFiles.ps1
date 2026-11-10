@@ -421,7 +421,8 @@ function Get-RenamePlanForFolder {
 
         $timestampValue = $timestampInfo.Value
         $timestampSourceLabel = $timestampInfo.Source
-        $normalizedExtension = Normalize-MediaExtension -Extension $file.Extension
+        $isHeic = (Normalize-MediaExtension -Extension $file.Extension) -eq 'heic'
+        $normalizedExtension = if ($isHeic) { 'jpg' } else { Normalize-MediaExtension -Extension $file.Extension }
         $candidateTimestamp = [datetime]$timestampValue
         $baseName = $candidateTimestamp.ToString('yyyyMMdd-HHmmss')
         $newName = if ([string]::IsNullOrEmpty($normalizedExtension)) { $baseName } else { '{0}.{1}' -f $baseName, $normalizedExtension }
@@ -442,11 +443,59 @@ function Get-RenamePlanForFolder {
             File = $file
             NewName = $newName
             Source = $timestampSourceLabel
+            IsHeic = $isHeic
             ConflictMessages = $conflictMessages
         }
     }
 
     return $plan
+}
+
+function Convert-HeicToJpeg {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.IO.FileInfo]$File,
+
+        [Parameter(Mandatory = $true)]
+        [string]$DestinationPath
+    )
+
+    $magickCommand = Get-Command -Name 'magick' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $magickCommand) {
+        throw "ImageMagick is required to convert HEIC files. Install ImageMagick with HEIC support and ensure 'magick' is on PATH. The original '$($File.FullName)' was not changed."
+    }
+
+    $exifToolCommand = Get-Command -Name 'exiftool' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $exifToolCommand) {
+        throw "ExifTool is required to preserve metadata when converting HEIC files. Ensure 'exiftool' is on PATH. The original '$($File.FullName)' was not changed."
+    }
+
+    $temporaryPath = Join-Path -Path $File.DirectoryName -ChildPath ('.media-renamer-{0}.jpg' -f [guid]::NewGuid().ToString('N'))
+    try {
+        $conversionOutput = @(& $magickCommand.Source $File.FullName '-quality' '92' $temporaryPath 2>&1)
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $temporaryPath -PathType Leaf)) {
+            $details = ($conversionOutput | Out-String).Trim()
+            throw "ImageMagick could not convert this HEIC file. $details"
+        }
+
+        $metadataOutput = @(& $exifToolCommand.Source '-TagsFromFile' $File.FullName '-all:all' '-unsafe' '-icc_profile' '-overwrite_original' $temporaryPath 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            $details = ($metadataOutput | Out-String).Trim()
+            throw "ExifTool could not copy the transferable metadata. $details"
+        }
+
+        Move-Item -LiteralPath $temporaryPath -Destination $DestinationPath -ErrorAction Stop
+        [System.IO.File]::SetCreationTime($DestinationPath, $File.CreationTime)
+        [System.IO.File]::SetLastWriteTime($DestinationPath, $File.LastWriteTime)
+        Remove-Item -LiteralPath $File.FullName -ErrorAction Stop
+    }
+    catch {
+        if (Test-Path -LiteralPath $temporaryPath) {
+            Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
+        }
+
+        throw "HEIC-to-JPG conversion failed for '$($File.FullName)'; the original was retained. $($_.Exception.Message)"
+    }
 }
 
 if ([string]::IsNullOrWhiteSpace($SourceDir)) {
@@ -478,7 +527,8 @@ foreach ($folder in $foldersToProcess) {
             foreach ($conflictMessage in $item.ConflictMessages) {
                 Write-LogMessage $conflictMessage
             }
-            Write-LogMessage ("[DRY-RUN] {0} -> {1} ({2})" -f $item.File.FullName, $item.NewName, $item.Source)
+            $operationLabel = if ($item.IsHeic) { 'HEIC to JPG; ' } else { '' }
+            Write-LogMessage ("[DRY-RUN] {0} -> {1} ({2}{3})" -f $item.File.FullName, $item.NewName, $operationLabel, $item.Source)
         }
         continue
     }
@@ -488,7 +538,8 @@ foreach ($folder in $foldersToProcess) {
             foreach ($conflictMessage in $item.ConflictMessages) {
                 Write-Output $conflictMessage
             }
-            Write-Output ("[DRY-RUN] {0} -> {1} ({2})" -f $item.File.FullName, $item.NewName, $item.Source)
+            $operationLabel = if ($item.IsHeic) { 'HEIC to JPG; ' } else { '' }
+            Write-Output ("[DRY-RUN] {0} -> {1} ({2}{3})" -f $item.File.FullName, $item.NewName, $operationLabel, $item.Source)
         }
 
         $shouldProceed = Confirm-InteractiveFolder -FolderPath $folder.FullName -PlannedCount $folderPlan.Count
@@ -505,8 +556,14 @@ foreach ($folder in $foldersToProcess) {
 
         $newPath = Join-Path -Path $item.File.DirectoryName -ChildPath $item.NewName
         if ($PSCmdlet.ShouldProcess($item.File.FullName, "Rename to $($item.NewName)")) {
-            Write-LogMessage ("[RENAME] {0} -> {1} ({2})" -f $item.File.FullName, $newPath, $item.Source)
-            Rename-Item -LiteralPath $item.File.FullName -NewName $item.NewName -ErrorAction Stop
+            if ($item.IsHeic) {
+                Convert-HeicToJpeg -File $item.File -DestinationPath $newPath
+                Write-LogMessage ("[CONVERT] {0} -> {1} (HEIC to JPG; {2})" -f $item.File.FullName, $newPath, $item.Source)
+            }
+            else {
+                Rename-Item -LiteralPath $item.File.FullName -NewName $item.NewName -ErrorAction Stop
+                Write-LogMessage ("[RENAME] {0} -> {1} ({2})" -f $item.File.FullName, $newPath, $item.Source)
+            }
             $renamedCount++
         }
     }
