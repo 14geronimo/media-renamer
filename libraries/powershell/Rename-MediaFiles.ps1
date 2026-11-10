@@ -402,13 +402,17 @@ function Get-RenamePlanForFolder {
         [System.IO.DirectoryInfo]$Folder,
 
         [Parameter(Mandatory = $true)]
-        [string[]]$AllowedExtensions
+        [string[]]$AllowedExtensions,
+
+        [AllowNull()]
+        [string]$FilePattern
     )
 
     $plan = @()
     $folderFiles = @(Get-ChildItem -LiteralPath $Folder.FullName -File | Where-Object {
         $fileExtension = Normalize-MediaExtension -Extension $_.Extension
-        $AllowedExtensions -contains $fileExtension
+        ([string]::IsNullOrEmpty($FilePattern) -or $_.Name -like $FilePattern) -and
+        ($AllowedExtensions -contains $fileExtension)
     } | Sort-Object FullName)
 
     $usedNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -502,7 +506,21 @@ if ([string]::IsNullOrWhiteSpace($SourceDir)) {
     throw "SourceDir is required and must be a valid directory path."
 }
 
-$resolvedSource = Resolve-CanonicalDirectory -Path $SourceDir -Name 'SourceDir' -MustExist
+$sourcePath = $SourceDir.Trim()
+$sourceLeaf = [System.IO.Path]::GetFileName($sourcePath)
+$filePattern = $null
+if ($sourceLeaf -match '[*?]') {
+    $filePattern = $sourceLeaf
+    $sourcePath = [System.IO.Path]::GetDirectoryName($sourcePath)
+    if ([string]::IsNullOrWhiteSpace($sourcePath)) {
+        throw "SourceDir must include a directory before the filename pattern."
+    }
+}
+elseif ($sourcePath -match '[*?]') {
+    throw "Wildcard characters are only supported in the filename pattern at the end of SourceDir."
+}
+
+$resolvedSource = Resolve-CanonicalDirectory -Path $sourcePath -Name 'SourceDir' -MustExist
 
 if (-not $DryRun) {
     $script:LogFilePath = Get-LogFilePath
@@ -520,7 +538,7 @@ $renamedCount = 0
 $skippedCount = 0
 
 foreach ($folder in $foldersToProcess) {
-    $folderPlan = @(Get-RenamePlanForFolder -Folder $folder -AllowedExtensions $allowedExtensions)
+    $folderPlan = @(Get-RenamePlanForFolder -Folder $folder -AllowedExtensions $allowedExtensions -FilePattern $filePattern)
 
     if ($DryRun) {
         foreach ($item in $folderPlan) {

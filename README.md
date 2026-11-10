@@ -105,9 +105,9 @@ This prevents accidental overwrites.
 #### Required parameter
 
 - `-SourceDir <path>`
-  - Required path to the directory to process
+  - Required path to the directory to process; optionally append a filename wildcard pattern, such as `C:\path\to\source\IMG*.jpg`
   - Relative and absolute paths are resolved to the same canonical path before processing
-  - The directory must exist and must be a directory
+  - The directory must exist and must be a directory; wildcard characters are supported only in the final filename component
 
 #### Switches
 
@@ -170,6 +170,12 @@ Process files recursively under a source tree:
 
 ```powershell
 powershell -NoProfile -File .\scripts\powershell\Rename-MediaFiles.ps1 -SourceDir "C:\path\to\source" -Recurse
+```
+
+Process only JPG files whose names start with `IMG`, including matching files in subfolders:
+
+```powershell
+powershell -NoProfile -File .\scripts\powershell\Rename-MediaFiles.ps1 -SourceDir "C:\path\to\source\IMG*.jpg" -Recurse -DryRun
 ```
 
 Only process JPEG and PNG images:

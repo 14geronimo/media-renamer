@@ -89,6 +89,24 @@ try {
     $filenameDryRunText = ($filenameDryRun | Out-String)
     Assert-True ($filenameDryRunText.Contains('(filename)')) "Expected a filename-derived timestamp to be labeled in the dry-run output."
 
+    $patternRoot = Join-Path $tempRoot 'pattern'
+    $patternSubfolder = Join-Path $patternRoot 'subfolder'
+    $null = New-Item -ItemType Directory -Path $patternSubfolder -Force
+    foreach ($patternFile in @(
+        (Join-Path $patternRoot 'IMG001.jpg'),
+        (Join-Path $patternRoot 'other.jpg'),
+        (Join-Path $patternSubfolder 'IMG002.jpg'),
+        (Join-Path $patternSubfolder 'IMG003.png')
+    )) {
+        [System.IO.File]::WriteAllBytes($patternFile, [byte[]](1, 2, 3))
+    }
+    $patternPreview = & $scriptPath -SourceDir (Join-Path $patternRoot 'IMG*.jpg') -Recurse -DryRun 2>&1
+    $patternPreviewText = ($patternPreview | Out-String)
+    Assert-True ($patternPreviewText.Contains('IMG001.jpg')) "Expected the filename pattern to match files in the source directory."
+    Assert-True ($patternPreviewText.Contains('IMG002.jpg')) "Expected the filename pattern to match files in recursively scanned subfolders."
+    Assert-True (-not $patternPreviewText.Contains('other.jpg')) "Expected files outside the filename pattern to be excluded."
+    Assert-True (-not $patternPreviewText.Contains('IMG003.png')) "Expected extension filtering to remain active with a filename pattern."
+
     $heicRoot = Join-Path $tempRoot 'heic'
     $null = New-Item -ItemType Directory -Path $heicRoot -Force
     $heicFile = Join-Path $heicRoot 'phone_2024-10-11_12-13-14.HEIC'
