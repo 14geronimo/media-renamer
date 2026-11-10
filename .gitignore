@@ -1,0 +1,6 @@
+# PowerShell/OS artifacts
+.DS_Store
+Thumbs.db
+
+# Generated media-renamer logs in the project root
+/Rename-MediaFiles-*.log

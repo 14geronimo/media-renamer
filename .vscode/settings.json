@@ -1,0 +1,26 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "Add-Type": true,
+        "New-Item": true,
+        "Out-Null": true,
+        "New-Object": true,
+        "Get-Item": true,
+        "&": true,
+        "/^powershell -NoProfile -ExecutionPolicy Bypass -File \\.\\\\tests\\\\Rename-MediaFiles\\.Tests\\.ps1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^powershell -NoProfile -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\nicda\\\\Repos\\\\media-renamer\\\\tests\\\\Rename-MediaFiles\\.Tests\\.ps1\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^powershell -NoProfile -ExecutionPolicy Bypass -Command \"\\$tempRoot = Join-Path \\(\\[System\\.IO\\.Path\\]::GetTempPath\\(\\)\\) \\('media-renamer-debug-' \\+ \\[System\\.Guid\\]::NewGuid\\(\\)\\.ToString\\('N'\\)\\); New-Item -ItemType Directory -Path \\$tempRoot -Force \\| Out-Null; \\$source = Join-Path \\$tempRoot 'source'; New-Item -ItemType Directory -Path \\$source -Force \\| Out-Null; \\$file1 = Join-Path \\$source 'sample\\.jpg'; \\[System\\.IO\\.File\\]::WriteAllBytes\\(\\$file1, \\[byte\\[\\]\\]\\(1,2,3,4\\)\\); \\(Get-Item \\$file1\\)\\.LastWriteTime = \\[System\\.DateTime\\]::Parse\\('2024-09-15 13:45:12'\\); \\$file2 = Join-Path \\$source 'sample-copy\\.jpg'; \\[System\\.IO\\.File\\]::WriteAllBytes\\(\\$file2, \\[byte\\[\\]\\]\\(5,6,7,8\\)\\); \\(Get-Item \\$file2\\)\\.LastWriteTime = \\[System\\.DateTime\\]::Parse\\('2024-09-15 13:45:12'\\); Push-Location \\$tempRoot; & 'C:\\\\Users\\\\nicda\\\\Repos\\\\media-renamer\\\\scripts\\\\powershell\\\\Rename-MediaFiles\\.ps1' -SourceDir \\$source; Get-ChildItem -Path \\$tempRoot; Pop-Location; Remove-Item -Path \\$tempRoot -Recurse -Force -ErrorAction SilentlyContinue\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^powershell -NoProfile -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\nicda\\\\Repos\\\\media-renamer\\\\tests\\\\Rename-MediaFiles\\.Tests\\.ps1\"; Select-String -Path \"C:\\\\Users\\\\nicda\\\\Repos\\\\media-renamer\\\\scripts\\\\powershell\\\\Rename-MediaFiles\\.ps1\",\"C:\\\\Users\\\\nicda\\\\Repos\\\\media-renamer\\\\libraries\\\\powershell\\\\Rename-MediaFiles\\.ps1\",\"C:\\\\Users\\\\nicda\\\\Repos\\\\media-renamer\\\\README\\.md\" -Pattern '\\\\-TimestampSource\\|TimestampSource = \\\\\\$TimestampSource'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
